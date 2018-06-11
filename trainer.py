@@ -117,8 +117,8 @@ class Trainer(BaseTrainer):
         # validate arguments.
         self._validate_arguments()
         self.lowest_loss = None
-        #self.experiment = Experiment(API_KEY="yKC6GT7BHR0llASHU9mifmPrG")
-        #experiment.log_multiple_params(kwargs)
+        self.experiment = Experiment(api_key="yKC6GT7BHR0llASHU9mifmPrG")
+        self.experiment.log_multiple_params(kwargs)
 
     def _validate_arguments(self):
         if self.seed is not None and self.data_augmentation:
@@ -156,6 +156,8 @@ class Trainer(BaseTrainer):
             loss_sum += loss
             loss.backward()
             optimizer.step()
+            self.experiment.set_step(iteration)
+            self.experiment.log_metric("loss", loss.data[0])
             if iteration % log_interval == 0:
                 log = 'elapsed_time: {0}, loss: {1}'.format(time.time() - start_time, loss.data[0])
                 logger.write(log)
@@ -190,7 +192,6 @@ class Trainer(BaseTrainer):
     def fit(self, model, train_data, val_data, loss_func):
         """ Train pose net. """
         # set random seed.
-        print('training')
         if self.seed is not None:
             random.seed(self.seed)
             torch.manual_seed(self.seed)
@@ -238,7 +239,6 @@ class Trainer(BaseTrainer):
 
     @staticmethod
     def get_args():
-        """ Main function."""
         # arg definition
         parser = argparse.ArgumentParser(
             description='Training pose net for comparison \

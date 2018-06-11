@@ -21,6 +21,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import torch.optim as optim
 from torchvision import transforms
+from comet_ml import Experiment
 
 from errors import FileNotFoundError, GPUNotFoundError, UnknownOptimizationMethodError, NotSupportedError
 #from dataset_indexing.pytorch import RandomNoise
@@ -116,6 +117,8 @@ class Trainer(BaseTrainer):
         # validate arguments.
         self._validate_arguments()
         self.lowest_loss = None
+        #self.experiment = Experiment(API_KEY="yKC6GT7BHR0llASHU9mifmPrG")
+        #experiment.log_multiple_params(kwargs)
 
     def _validate_arguments(self):
         if self.seed is not None and self.data_augmentation:
@@ -187,6 +190,7 @@ class Trainer(BaseTrainer):
     def fit(self, model, train_data, val_data, loss_func):
         """ Train pose net. """
         # set random seed.
+        print('training')
         if self.seed is not None:
             random.seed(self.seed)
             torch.manual_seed(self.seed)

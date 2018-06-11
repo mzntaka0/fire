@@ -33,5 +33,5 @@ def main():
     trainer.fit(model, train_data, test_data, loss_func)
 
 if __name__ == '__main__':
-    pass
+    main()
 

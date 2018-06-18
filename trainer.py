@@ -183,7 +183,7 @@ class Trainer(BaseTrainer):
         return test_loss
 
     def _checkpoint(self, epoch, model, optimizer, logger):
-        filename = os.path.join(self.out, 'pytorch', 'epoch-{0}'.format(epoch + 1))
+        filename = os.path.join(self.out, 'epoch-{0}'.format(epoch + 1))
         torch.save({'epoch': epoch + 1, 'logger': logger.state_dict()}, filename + '.iter')
         torch.save(model.state_dict(), filename + '.model')
         torch.save(optimizer.state_dict(), filename + '.state')

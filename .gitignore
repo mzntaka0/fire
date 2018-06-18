@@ -101,7 +101,8 @@ ENV/
 .mypy_cache/
 
 data
+result
 config.yml
 *.model
-*.state
 *.iter
+*.state

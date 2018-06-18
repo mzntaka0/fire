@@ -102,3 +102,6 @@ ENV/
 
 data
 config.yml
+*.model
+*.state
+*.iter

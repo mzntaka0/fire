@@ -189,7 +189,7 @@ class Trainer(BaseTrainer):
         torch.save(optimizer.state_dict(), filename + '.state')
 
     def _best_checkpoint(self, epoch, model, optimizer, logger):
-        filename = os.path.join(self.out, 'pytorch', 'best_model')
+        filename = os.path.join(self.out, 'best_model')
         torch.save({'epoch': epoch + 1, 'logger': logger.state_dict()}, filename + '.iter')
         torch.save(model.state_dict(), filename + '.model')
         torch.save(optimizer.state_dict(), filename + '.state')

@@ -4,6 +4,7 @@
 import argparse
 import os
 import sys
+import yaml
 import time
 import random
 from abc import ABCMeta, abstractmethod
@@ -100,6 +101,9 @@ class Trainer(BaseTrainer):
             (it\'s necessary when you resume a training).
             The file name is 'epoch-{epoch number}.state'.
     """
+    with open('config.yml', 'r') as f:
+        configs = yaml.load(f)
+
 
     def __init__(self, **kwargs):
         self.data_augmentation = kwargs['data_augmentation']
@@ -117,7 +121,7 @@ class Trainer(BaseTrainer):
         # validate arguments.
         self._validate_arguments()
         self.lowest_loss = None
-        self.experiment = Experiment(api_key="yKC6GT7BHR0llASHU9mifmPrG")
+        self.experiment = Experiment(api_key=self.configs['API_KEY'])
         self.experiment.log_multiple_params(kwargs)
 
     def _validate_arguments(self):
@@ -136,6 +140,7 @@ class Trainer(BaseTrainer):
                 if not os.path.isfile(path):
                     raise FileNotFoundError('{0} is not found.'.format(path))
 
+    # TODO: make it acceptable multiple optimizer
     def _get_optimizer(self, model):
         if self.opt == 'MomentumSGD':
             optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)

@@ -57,7 +57,7 @@ class TrainLogger(object):
             tqdm.write(log, file=self.file)
 
 
-class BaseTrainer(object, metaclass=ABCMeta):
+class _BaseTrainer(object, metaclass=ABCMeta):
     """
     Base class for Trainer
     """
@@ -75,7 +75,7 @@ class BaseTrainer(object, metaclass=ABCMeta):
         pass
 
 
-class Trainer(BaseTrainer):
+class BaseTrainer(_BaseTrainer):
     """ Train pose net of estimating 2D pose from image.
 
     Args:

@@ -10,7 +10,7 @@ try:
 except ImportError:
     from pdb import set_trace
 
-from fire.trainer import Trainer
+from fire.trainer import BaseTrainer
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
@@ -19,7 +19,7 @@ from models.simpleCNN import simpleCNN
 def main():
     model = simpleCNN()
     loss_func = F.nll_loss
-    args = Trainer.get_args()
+    args = BaseTrainer.get_args()
     train_data = datasets.MNIST(root='./data/',
                                train=True,
                                transform=transforms.ToTensor(),
@@ -29,7 +29,7 @@ def main():
                               train=False,
                               transform=transforms.ToTensor())
     args_dict = vars(args)
-    trainer = Trainer(**args_dict)
+    trainer = BaseTrainer(**args_dict)
     trainer.fit(model, train_data, test_data, loss_func)
 
 if __name__ == '__main__':

@@ -30,3 +30,7 @@ class UnknownOptimizationMethodError(BaseError):
 class NotSupportedError(BaseError):
     """ Raise when not supported option set is specified. """
     pass
+
+class OptimNotSupportedError(BaseError):
+    """ Raise when not supported optim option set is specified. """
+    pass

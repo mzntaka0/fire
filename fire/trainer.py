@@ -18,7 +18,7 @@ import torch.optim as optim
 from torchvision import transforms
 from hyperdash import Experiment
 
-from fire.errors import FileNotFoundError, GPUNotFoundError, UnknownOptimizationMethodError, NotSupportedError
+from fire.errors import FileNotFoundError, GPUNotFoundError, UnknownOptimizationMethodError, NotSupportedError, OptimNotSupportedError
 
     
 class TrainLogger(object):
@@ -119,6 +119,7 @@ class BaseTrainer(_BaseTrainer):
         # validate arguments.
         self._validate_arguments()
         self.lowest_loss = 0
+        self.device = torch.device('cuda' if kwargs['gpu'] >= 0 else 'cpu')
         #self.experiment.log_multiple_params(kwargs)
 
     def _validate_arguments(self):
@@ -138,17 +139,20 @@ class BaseTrainer(_BaseTrainer):
                     raise FileNotFoundError('{0} is not found.'.format(path))
 
     # TODO: make it acceptable multiple optimizer, or define out of this trainer.
-    def _get_optimizer(self, model):
+    def _get_optimizer(self, model, **kwargs):
         if self.opt == 'MomentumSGD':
             optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
         elif self.opt == "Adam":
             optimizer = optim.Adam(model.parameters())
+        else:
+            try:
+                optimizer = getattr(optim, self.opt)(**kwargs)
+            except OptimNotSupportedError:
+                print("This optim is not available. See https://pytorch.org/docs/stable/optim.html")
         return optimizer
 
-    def train_core(self, batch, model, loss_func):
-        data, target = batch[0], batch[1]
-        if self.gpu:
-            data, target = data.cuda(), target.cuda()
+    def forward(self, batch, model, loss_func):
+        data, target = map(lambda d: d.to(self.device), batch)
         output = model(data)
         loss = loss_func(output, target)
         return loss
@@ -159,7 +163,7 @@ class BaseTrainer(_BaseTrainer):
         loss_sum = 0.0
         for iteration, batch in enumerate(tqdm(train_iter, desc='this epoch'), 1):
             optimizer.zero_grad()
-            loss = self.train_core(batch, model, loss_func)
+            loss = self.forward(batch, model, loss_func)
             loss_sum += loss
             loss.backward()
             optimizer.step()
@@ -174,11 +178,8 @@ class BaseTrainer(_BaseTrainer):
         model.eval()
         test_loss = 0
         for batch in test_iter:
-            data, target = batch[0], batch[1]
-            if self.gpu:
-                data, target = data.cuda(), target.cuda()
-            output = model(data)
-            test_loss += loss_func(output, target).data[0]
+            loss = self.forward(batch, model, loss_func)
+            test_loss += loss.data[0]
         test_loss /= len(test_iter)
         log = 'elapsed_time: {0}, validation/loss: {1}'.format(time.time() - start_time, test_loss)
         if self.hyperdash:

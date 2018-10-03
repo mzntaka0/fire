@@ -10,7 +10,7 @@ try:
 except ImportError:
     from pdb import set_trace
 
-from trainer import Trainer
+from fire.trainer import Trainer
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms

@@ -13,6 +13,10 @@ with open(os.path.join(here, 'fire', '__version__.py')) as f:
 with open('README.md', 'r', encoding='utf-8') as f:
     readme = f.read()
 
+with open('requirements.txt', 'r') as f:
+    requirements = list(map(lambda s: s.replace('\n', ''), f.readlines()))
+
+
 setup(
         name=about['__title__'],
         version=about['__version__'],
@@ -23,6 +27,7 @@ setup(
         url=about['__url__'],
         license=about['__license__'],
         packages=find_packages(),
+        install_requires = [package for package in requirements],
         classifiers=[
             'License :: OSI Approved :: MIT License',
             'Intended Audience :: Developers',

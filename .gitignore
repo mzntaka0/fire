@@ -106,3 +106,6 @@ config.yml
 *.model
 *.iter
 *.state
+build
+dist
+fire.egg-info

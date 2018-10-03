@@ -1,2 +1,4 @@
 torch
-comet_ml
+torchvision
+hyperdash
+tqdm

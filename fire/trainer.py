@@ -3,29 +3,22 @@
 """
 import argparse
 import os
-import sys
 import yaml
 import time
 import random
 from abc import ABCMeta, abstractmethod
 from datetime import datetime
-try:
-    from bpdb import set_trace
-except ImportError:
-    from pdb import set_trace
 
 from tqdm import tqdm
 from tqdm import trange
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 import torch.optim as optim
 from torchvision import transforms
-from comet_ml import Experiment
+from hyperdash import Experiment
 
-from errors import FileNotFoundError, GPUNotFoundError, UnknownOptimizationMethodError, NotSupportedError
-#from dataset_indexing.pytorch import RandomNoise
+from fire.errors import FileNotFoundError, GPUNotFoundError, UnknownOptimizationMethodError, NotSupportedError
 
     
 class TrainLogger(object):
@@ -65,6 +58,9 @@ class TrainLogger(object):
 
 
 class BaseTrainer(object, metaclass=ABCMeta):
+    """
+    Base class for Trainer
+    """
 
     @abstractmethod
     def _train(self):
@@ -101,9 +97,6 @@ class Trainer(BaseTrainer):
             (it\'s necessary when you resume a training).
             The file name is 'epoch-{epoch number}.state'.
     """
-    with open('config.yml', 'r') as f:
-        configs = yaml.load(f)
-
 
     def __init__(self, **kwargs):
         self.data_augmentation = kwargs['data_augmentation']
@@ -118,11 +111,15 @@ class Trainer(BaseTrainer):
         self.resume = kwargs['resume']
         self.resume_model = kwargs['resume_model']
         self.resume_opt = kwargs['resume_opt']
+        self.hyperdash = kwargs['hyperdash']
+        if self.hyperdash:
+            self.experiment = Experiment(self.hyperdash)
+            for key, val in kwargs.items():
+                self.experiment.param(key, val)
         # validate arguments.
         self._validate_arguments()
-        self.lowest_loss = None
-        self.experiment = Experiment(api_key=self.configs['API_KEY'])
-        self.experiment.log_multiple_params(kwargs)
+        self.lowest_loss = 0
+        #self.experiment.log_multiple_params(kwargs)
 
     def _validate_arguments(self):
         if self.seed is not None and self.data_augmentation:
@@ -140,7 +137,7 @@ class Trainer(BaseTrainer):
                 if not os.path.isfile(path):
                     raise FileNotFoundError('{0} is not found.'.format(path))
 
-    # TODO: make it acceptable multiple optimizer
+    # TODO: make it acceptable multiple optimizer, or define out of this trainer.
     def _get_optimizer(self, model):
         if self.opt == 'MomentumSGD':
             optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
@@ -148,21 +145,26 @@ class Trainer(BaseTrainer):
             optimizer = optim.Adam(model.parameters())
         return optimizer
 
+    def train_core(self, batch, model, loss_func):
+        data, target = batch[0], batch[1]
+        if self.gpu:
+            data, target = data.cuda(), target.cuda()
+        output = model(data)
+        loss = loss_func(output, target)
+        return loss
+
+
     def _train(self, model, optimizer, loss_func, train_iter, logger, start_time, log_interval=10):
         model.train()
         loss_sum = 0.0
         for iteration, batch in enumerate(tqdm(train_iter, desc='this epoch'), 1):
-            data, target = Variable(batch[0]), Variable(batch[1])
-            if self.gpu:
-                data, target = data.cuda(), target.cuda()
             optimizer.zero_grad()
-            output = model(data)
-            loss = loss_func(output, target)
+            loss = self.train_core(batch, model, loss_func)
             loss_sum += loss
             loss.backward()
             optimizer.step()
-            self.experiment.set_step(iteration)
-            self.experiment.log_metric("loss", loss.data[0])
+            if self.hyperdash:
+                self.experiment.metric("loss", int(loss.cpu().data.numpy()), log=False)
             if iteration % log_interval == 0:
                 log = 'elapsed_time: {0}, loss: {1}'.format(time.time() - start_time, loss.data[0])
                 logger.write(log)
@@ -172,13 +174,15 @@ class Trainer(BaseTrainer):
         model.eval()
         test_loss = 0
         for batch in test_iter:
-            data, target = Variable(batch[0]), Variable(batch[1])
+            data, target = batch[0], batch[1]
             if self.gpu:
                 data, target = data.cuda(), target.cuda()
             output = model(data)
             test_loss += loss_func(output, target).data[0]
         test_loss /= len(test_iter)
         log = 'elapsed_time: {0}, validation/loss: {1}'.format(time.time() - start_time, test_loss)
+        if self.hyperdash:
+            self.experiment.metric('test_loss', int(test_loss.cpu().data.numpy()))
         logger.write(log)
         return test_loss
 
@@ -209,7 +213,7 @@ class Trainer(BaseTrainer):
         if self.gpu:
             model.cuda()
         # load the datasets.
-        input_transforms = [transforms.ToTensor()]
+        #input_transforms = [transforms.ToTensor()]
         # training/validation iterators.
         train_iter = torch.utils.data.DataLoader(train_data, batch_size=self.batchsize, shuffle=True)
         val_iter = torch.utils.data.DataLoader(val_data, batch_size=self.batchsize, shuffle=False)
@@ -230,17 +234,21 @@ class Trainer(BaseTrainer):
             logger.load_state_dict(resume['logger'])
         # start training.
         start_time = time.time()
-        loss = None
+        loss = 0
         for epoch in trange(start_epoch, self.epoch, initial=start_epoch, total=self.epoch, desc='     total'):
             self._train(model, optimizer, loss_func, train_iter, log_interval, logger, start_time)
             if (epoch + 1) % val_interval == 0:
                 loss = self._test(model, val_iter, loss_func, logger, start_time)
-                if self.lowest_loss == None or self.lowest_loss > loss:
+                if self.lowest_loss == 0 or self.lowest_loss > loss:
                     logger.write('Best model updated. loss: {} => {}'.format(self.lowest_loss, loss))
                     self._best_checkpoint(epoch, model, optimizer, logger)
                     self.lowest_loss = loss
             if (epoch + 1) % resume_interval == 0:
                 self._checkpoint(epoch, model, optimizer, logger)
+
+        if self.hyperdash:
+            self.experiment.end()
+
 
     @staticmethod
     def get_args():
@@ -253,10 +261,10 @@ class Trainer(BaseTrainer):
         parser.add_argument(
             '--epoch', '-e', type=int, default=100, help='Number of epochs to train.')
         parser.add_argument(
-            '--opt', '-o', type=str, default='MomentumSGD',
+            '--opt', '-o', type=str, default='Adam',
             choices=['MomentumSGD', 'Adam'], help='Optimization method.')
         parser.add_argument(
-            '--gpu', '-g', type=int, default=-1, help='GPU ID (negative value indicates CPU).')
+            '--gpu', '-g', type=int, default=0, help='GPU ID (negative value indicates CPU).')
         parser.add_argument(
             '--seed', '-s', type=int, help='Random seed to train.')
         parser.add_argument(
@@ -281,10 +289,10 @@ class Trainer(BaseTrainer):
             help='Load optimization states from this file \
             (it\'s necessary when you resume a training). \
             The file name is "epoch-{epoch number}.state"')
+        parser.add_argument(
+            '--hyperdash', type=str, default=None,
+            help='If you use hyperdash logging, enter here the name of experiment. Before using, you have to login to hyperdash with "hyperdash login --github". The default is None that means no logging with hyperdash')
         args = parser.parse_args()
         return args
 
-
-if __name__ == '__main__':
-    pass
 

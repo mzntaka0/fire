@@ -1,5 +1,5 @@
 # fire
-efficient modules for pytorch to make it more easier.
+efficient modules for pytorch to make it more easier.  
 Abstract Modules
 * Trainer
 * Estimator
@@ -28,7 +28,7 @@ trainer.fit(model, train_data, test_data,loss_func)
 * pytorch
 * torchvision
 * tqdm
-* comet_ml(optional)
+* hyperdash(optional)
 
 ## Install
 ```

@@ -121,6 +121,7 @@ class BaseTrainer(_BaseTrainer):
         self.lowest_loss = 0
         self.device = torch.device('cuda' if kwargs['gpu'] >= 0 else 'cpu')
         #self.experiment.log_multiple_params(kwargs)
+        self.dataloader = torch.utils.data.DataLoader
 
     def _validate_arguments(self):
         if self.seed is not None and self.data_augmentation:
@@ -151,19 +152,19 @@ class BaseTrainer(_BaseTrainer):
                 print("This optim is not available. See https://pytorch.org/docs/stable/optim.html")
         return optimizer
 
-    def forward(self, batch, model, loss_func):
+    def forward(self, batch, model, criterion):
         data, target = map(lambda d: d.to(self.device), batch)
         output = model(data)
-        loss = loss_func(output, target)
+        loss = criterion(output, target)
         return loss
 
 
-    def _train(self, model, optimizer, loss_func, train_iter, logger, start_time, log_interval=10):
+    def _train(self, model, optimizer, criterion, train_iter, logger, start_time, log_interval=10):
         model.train()
         loss_sum = 0.0
         for iteration, batch in enumerate(tqdm(train_iter, desc='this epoch'), 1):
             optimizer.zero_grad()
-            loss = self.forward(batch, model, loss_func)
+            loss = self.forward(batch, model, criterion)
             loss_sum += loss
             loss.backward()
             optimizer.step()
@@ -174,11 +175,11 @@ class BaseTrainer(_BaseTrainer):
                 logger.write(log)
         return loss_sum / len(train_iter)
 
-    def _test(self, model, test_iter, loss_func, logger, start_time):
+    def _test(self, model, test_iter, criterion, logger, start_time):
         model.eval()
         test_loss = 0
         for batch in test_iter:
-            loss = self.forward(batch, model, loss_func)
+            loss = self.forward(batch, model, criterion)
             test_loss += loss.data[0]
         test_loss /= len(test_iter)
         log = 'elapsed_time: {0}, validation/loss: {1}'.format(time.time() - start_time, test_loss)
@@ -199,7 +200,7 @@ class BaseTrainer(_BaseTrainer):
         torch.save(model.state_dict(), filename + '.model')
         torch.save(optimizer.state_dict(), filename + '.state')
 
-    def fit(self, model, train_data, val_data, loss_func):
+    def fit(self, model, train_data, val_data, criterion):
         """ Train pose net. """
         # set random seed.
         if self.seed is not None:
@@ -216,8 +217,10 @@ class BaseTrainer(_BaseTrainer):
         # load the datasets.
         #input_transforms = [transforms.ToTensor()]
         # training/validation iterators.
-        train_iter = torch.utils.data.DataLoader(train_data, batch_size=self.batchsize, shuffle=True)
-        val_iter = torch.utils.data.DataLoader(val_data, batch_size=self.batchsize, shuffle=False)
+        #train_iter = torch.utils.data.DataLoader(train_data, batch_size=self.batchsize, shuffle=True)
+        #val_iter = torch.utils.data.DataLoader(val_data, batch_size=self.batchsize, shuffle=False)
+        train_iter = self.dataloader(train_data, batch_size=self.batchsize, shuffle=True)
+        val_iter = self.dataloader(val_data, batch_size=self.batchsize, shuffle=False)
         # set up an optimizer.
         optimizer = self._get_optimizer(model)
         if self.resume_opt:
@@ -237,9 +240,9 @@ class BaseTrainer(_BaseTrainer):
         start_time = time.time()
         loss = 0
         for epoch in trange(start_epoch, self.epoch, initial=start_epoch, total=self.epoch, desc='     total'):
-            self._train(model, optimizer, loss_func, train_iter, log_interval, logger, start_time)
+            self._train(model, optimizer, criterion, train_iter, log_interval, logger, start_time)
             if (epoch + 1) % val_interval == 0:
-                loss = self._test(model, val_iter, loss_func, logger, start_time)
+                loss = self._test(model, val_iter, criterion, logger, start_time)
                 if self.lowest_loss == 0 or self.lowest_loss > loss:
                     logger.write('Best model updated. loss: {} => {}'.format(self.lowest_loss, loss))
                     self._best_checkpoint(epoch, model, optimizer, logger)

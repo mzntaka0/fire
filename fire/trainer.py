@@ -152,10 +152,12 @@ class BaseTrainer(_BaseTrainer):
                 print("This optim is not available. See https://pytorch.org/docs/stable/optim.html")
         return optimizer
 
-    def forward(self, batch, model, criterion):
+    def forward(self, batch, model, criterion, isTest=False):
         data, target = map(lambda d: d.to(self.device), batch)
         output = model(data)
         loss = criterion(output, target)
+        if isTest:
+            print('Test loss: {}'.format(loss.data))
         return loss
 
 
@@ -164,7 +166,7 @@ class BaseTrainer(_BaseTrainer):
         loss_sum = 0.0
         for iteration, batch in enumerate(tqdm(train_iter, desc='this epoch'), 1):
             optimizer.zero_grad()
-            loss = self.forward(batch, model, criterion)
+            loss = self.forward(batch, model, criterion, isTest=False)
             loss_sum += loss
             loss.backward()
             optimizer.step()
@@ -179,7 +181,7 @@ class BaseTrainer(_BaseTrainer):
         model.eval()
         test_loss = 0
         for batch in test_iter:
-            loss = self.forward(batch, model, criterion)
+            loss = self.forward(batch, model, criterion, isTest=True)
             test_loss += loss.data[0]
         test_loss /= len(test_iter)
         log = 'elapsed_time: {0}, validation/loss: {1}'.format(time.time() - start_time, test_loss)

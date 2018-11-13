@@ -76,7 +76,7 @@ class _BaseTrainer(object, metaclass=ABCMeta):
 
 
 class BaseTrainer(_BaseTrainer):
-    """ Train pose net of estimating 2D pose from image.
+    """ Base trainer to make pytorch training be easier.
 
     Args:
         data-augmentation (bool): Crop randomly and add random noise for data augmentation.
@@ -169,6 +169,7 @@ class BaseTrainer(_BaseTrainer):
             loss = self.forward(batch, model, criterion, isTest=False)
             loss_sum += loss
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 500)
             optimizer.step()
             if self.hyperdash:
                 self.experiment.metric("loss", int(loss.cpu().data.numpy()), log=False)
@@ -203,7 +204,7 @@ class BaseTrainer(_BaseTrainer):
         torch.save(optimizer.state_dict(), filename + '.state')
 
     def fit(self, model, train_data, val_data, criterion):
-        """ Train pose net. """
+        """ Execute training """
         # set random seed.
         if self.seed is not None:
             random.seed(self.seed)
@@ -222,13 +223,13 @@ class BaseTrainer(_BaseTrainer):
         #train_iter = torch.utils.data.DataLoader(train_data, batch_size=self.batchsize, shuffle=True)
         #val_iter = torch.utils.data.DataLoader(val_data, batch_size=self.batchsize, shuffle=False)
         train_iter = self.dataloader(train_data, batch_size=self.batchsize, shuffle=True)
-        val_iter = self.dataloader(val_data, batch_size=self.batchsize, shuffle=False)
+        val_iter = self.dataloader(val_data, batch_size=3, shuffle=False)
         # set up an optimizer.
         optimizer = self._get_optimizer(model)
         if self.resume_opt:
             optimizer.load_state_dict(torch.load(self.resume_opt))
         # set intervals.
-        val_interval = 10
+        val_interval = 3
         resume_interval = self.epoch/10
         log_interval = 10
         # set logger and start epoch.
@@ -243,7 +244,7 @@ class BaseTrainer(_BaseTrainer):
         loss = 0
         for epoch in trange(start_epoch, self.epoch, initial=start_epoch, total=self.epoch, desc='     total'):
             self._train(model, optimizer, criterion, train_iter, log_interval, logger, start_time)
-            if (epoch + 1) % val_interval == 0:
+            if (epoch) % val_interval == 0:
                 loss = self._test(model, val_iter, criterion, logger, start_time)
                 if self.lowest_loss == 0 or self.lowest_loss > loss:
                     logger.write('Best model updated. loss: {} => {}'.format(self.lowest_loss, loss))

@@ -20,7 +20,7 @@ from hyperdash import Experiment
 
 from fire.errors import FileNotFoundError, GPUNotFoundError, UnknownOptimizationMethodError, NotSupportedError, OptimNotSupportedError
 
-    
+
 class TrainLogger(object):
     """ Logger of training network.
 
@@ -160,7 +160,6 @@ class BaseTrainer(_BaseTrainer):
             print('Test loss: {}'.format(loss.data))
         return loss
 
-
     def _train(self, model, optimizer, criterion, train_iter, logger, start_time, log_interval=10):
         model.train()
         loss_sum = 0.0
@@ -230,7 +229,7 @@ class BaseTrainer(_BaseTrainer):
             optimizer.load_state_dict(torch.load(self.resume_opt))
         # set intervals.
         val_interval = 3
-        resume_interval = self.epoch/10
+        resume_interval = self.epoch / 10
         log_interval = 10
         # set logger and start epoch.
         logger = TrainLogger(self.out)
@@ -255,7 +254,6 @@ class BaseTrainer(_BaseTrainer):
 
         if self.hyperdash:
             self.experiment.end()
-
 
     @staticmethod
     def get_args():
@@ -301,5 +299,3 @@ class BaseTrainer(_BaseTrainer):
             help='If you use hyperdash logging, enter here the name of experiment. Before using, you have to login to hyperdash with "hyperdash login --github". The default is None that means no logging with hyperdash')
         args = parser.parse_args()
         return args
-
-

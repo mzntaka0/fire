@@ -3,7 +3,6 @@
 """
 import argparse
 import os
-import yaml
 import time
 import random
 from abc import ABCMeta, abstractmethod
@@ -12,10 +11,7 @@ from datetime import datetime
 from tqdm import tqdm
 from tqdm import trange
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
-from torchvision import transforms
 from hyperdash import Experiment
 
 from fire.errors import FileNotFoundError, GPUNotFoundError, UnknownOptimizationMethodError, NotSupportedError, OptimNotSupportedError
@@ -68,6 +64,10 @@ class _BaseTrainer(object, metaclass=ABCMeta):
 
     @abstractmethod
     def _test(self):
+        pass
+
+    @abstractmethod
+    def forward(self, batch, model, criterion):
         pass
 
     @abstractmethod
@@ -152,12 +152,10 @@ class BaseTrainer(_BaseTrainer):
                 print("This optim is not available. See https://pytorch.org/docs/stable/optim.html")
         return optimizer
 
-    def forward(self, batch, model, criterion, isTest=False):
+    def forward(self, batch, model, criterion):
         data, target = map(lambda d: d.to(self.device), batch)
         output = model(data)
         loss = criterion(output, target)
-        if isTest:
-            print('Test loss: {}'.format(loss.data))
         return loss
 
     def _train(self, model, optimizer, criterion, train_iter, logger, start_time, log_interval=10):
@@ -182,6 +180,7 @@ class BaseTrainer(_BaseTrainer):
         test_loss = 0
         for batch in test_iter:
             loss = self.forward(batch, model, criterion, isTest=True)
+            print('Test loss: {}'.format(loss.data))
             test_loss += loss.data[0]
         test_loss /= len(test_iter)
         log = 'elapsed_time: {0}, validation/loss: {1}'.format(time.time() - start_time, test_loss)
@@ -217,10 +216,6 @@ class BaseTrainer(_BaseTrainer):
         if self.gpu:
             model.cuda()
         # load the datasets.
-        #input_transforms = [transforms.ToTensor()]
-        # training/validation iterators.
-        #train_iter = torch.utils.data.DataLoader(train_data, batch_size=self.batchsize, shuffle=True)
-        #val_iter = torch.utils.data.DataLoader(val_data, batch_size=self.batchsize, shuffle=False)
         train_iter = self.dataloader(train_data, batch_size=self.batchsize, shuffle=True)
         val_iter = self.dataloader(val_data, batch_size=3, shuffle=False)
         # set up an optimizer.

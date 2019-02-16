@@ -181,7 +181,7 @@ class BaseTrainer(_BaseTrainer):
         for batch in test_iter:
             loss = self.forward(batch, model, criterion, isTest=True)
             print('Test loss: {}'.format(loss.data))
-            test_loss += loss.data[0]
+            test_loss += loss.item()
         test_loss /= len(test_iter)
         log = 'elapsed_time: {0}, validation/loss: {1}'.format(time.time() - start_time, test_loss)
         if self.hyperdash:
